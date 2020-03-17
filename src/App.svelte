@@ -5,6 +5,7 @@
   let x;
   let y;
   let isConnected = false;
+  let interval;
   let canvas;
   let frame;
   let context = null;
@@ -15,6 +16,14 @@
   let height = 40;
   let count = 0;
   let start = null;
+  let clonePlayers = [
+    {
+      username: "player one",
+      x: 150,
+      y: 0
+    },
+    { username: "player two", x: 150, y: 0 }
+  ];
 
   $: userData = {
     user: username,
@@ -25,26 +34,52 @@
   };
 
   $: {
-    if (isConnected) {
-      frame = requestAnimationFrame(loop);
-    }
     console.log(`x: ${x}, y: ${y}`);
+  }
+
+  $: if (isConnected) {
+    interval = setInterval(() => {
+      // console.log('update players position');
+      for (let player of clonePlayers) {
+        if (player.username == username) {
+          player.x = x;
+        }
+      }
+    }, 20);
+  } else {
+    console.log("cleering interval");
+    clearInterval(interval);
   }
 
   function drawPlayers() {
     // console.log('draw');
-    getPlayers().then(players => {
-      // console.log(players);
-      for (let player of players) {
-        if (player.username == username) {
-          context.fillStyle = color;
-          context.fillRect(player.x, 240, width, height);
-          continue;
-        }
-        context.fillStyle = "rgb(200, 0, 0)";
-        context.fillRect(player.x, 20, width, height);
+    // getPlayers().then(players => {
+    //   // console.log(players);
+    //   for (let player of players) {
+    //     if (player.username == username) {
+    //       context.fillStyle = color;
+    //       context.fillRect(player.x, 240, width, height);
+    //       continue;
+    //     }
+    //     context.fillStyle = "rgb(200, 0, 0)";
+    //     context.fillRect(player.x, 20, width, height);
+    //   }
+    // });
+
+    if (!clonePlayers) {
+      return;
+    }
+    context.fillStyle = "rgb(256, 256, 256)";
+    context.fillRect(0, 0, 300, 300);
+    for (let player of clonePlayers) {
+      if (player.username == username) {
+        context.fillStyle = color;
+        context.fillRect(player.x - 20, 240, width, height);
+        continue;
       }
-    });
+      context.fillStyle = "rgb(200, 0, 0)";
+      context.fillRect(player.x - 20, 20, width, height);
+    }
   }
 
   async function getPlayers() {
@@ -93,6 +128,10 @@
   onMount(() => {
     context = canvas.getContext("2d");
     frame = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
   });
 
   function keydown(e) {
@@ -100,23 +139,31 @@
       keyCode = e.keyCode;
       if (keyCode == 37) {
         //arrowleft
-        x -= 1;
+        x -= 3;
+        if (x < 20) {
+          x = 20;
+        }
         return;
       }
-      if (keyCode == 39) {  //arrowright
-        x += 1;
+      if (keyCode == 39) {
+        //arrowright
+        x += 3;
+        if (x > 300) {
+          x = 300;
+        }
         return;
       }
     }
   }
 
   function loop(timestamp) {
-    if (!start){
+    if (!start) {
       start = timestamp;
     }
-    if (count == 1000){
+    if (count == 180) {
       let elapsed = timestamp - start;
-      console.log('fps: ',elapsed/1000);
+      // console.log('elapsed: ', elapsed);
+      console.log("fps: ", (count * 1000) / elapsed);
       start = timestamp;
       count = 0;
     }
@@ -129,10 +176,6 @@
     count += 1;
     requestAnimationFrame(loop);
   }
-
-  onDestroy(() => {
-    cancelAnimationFrame(frame);
-  });
 </script>
 
 <style>
