@@ -1,6 +1,5 @@
 <script>
   import { onMount, onDestroy } from "svelte";
-  export let name;
   let username;
   let x;
   let y;
@@ -16,60 +15,17 @@
   let height = 40;
   let count = 0;
   let start = null;
-  let clonePlayers = [
-    {
-      username: "player one",
-      x: 150,
-      y: 0
-    },
-    { username: "player two", x: 150, y: 0 }
-  ];
+  let clonePlayers;
 
-  $: userData = {
-    user: username,
-    position: {
-      x: x,
-      y: y
-    }
-  };
-
-  $: {
-    console.log(`x: ${x}, y: ${y}`);
-  }
-
-  $: if (isConnected) {
-    interval = setInterval(() => {
-      // console.log('update players position');
-      for (let player of clonePlayers) {
-        if (player.username == username) {
-          player.x = x;
-        }
-      }
-    }, 20);
-  } else {
-    console.log("cleering interval");
-    clearInterval(interval);
-  }
+  // $: {
+  //   console.log(`x: ${x}, y: ${y}`);
+  // }
 
   function drawPlayers() {
-    // console.log('draw');
-    // getPlayers().then(players => {
-    //   // console.log(players);
-    //   for (let player of players) {
-    //     if (player.username == username) {
-    //       context.fillStyle = color;
-    //       context.fillRect(player.x, 240, width, height);
-    //       continue;
-    //     }
-    //     context.fillStyle = "rgb(200, 0, 0)";
-    //     context.fillRect(player.x, 20, width, height);
-    //   }
-    // });
-
     if (!clonePlayers) {
       return;
     }
-    context.fillStyle = "rgb(256, 256, 256)";
+    context.fillStyle = "rgb(0, 0, 0)";
     context.fillRect(0, 0, 300, 300);
     for (let player of clonePlayers) {
       if (player.username == username) {
@@ -82,19 +38,8 @@
     }
   }
 
-  async function getPlayers() {
-    const res = await fetch("http://localhost:3000");
-    if (res.ok) {
-      let text = await res.text();
-      let players = await JSON.parse(text);
-      // console.log(players);
-      return players;
-    }
-  }
-
   async function connect() {
-    console.log(userData);
-    if (!userData.user) {
+    if (!username) {
       return;
     }
     let res = await fetch("http://localhost:3000", {
@@ -102,27 +47,43 @@
       headers: {
         "Content-Type": "application/json;charset=utf-8"
       },
-      body: JSON.stringify(userData)
+      body: JSON.stringify({
+        user: username
+      })
     });
     if (res.ok) {
       let json = await res.json();
       // console.log(json);
       if (json.error) {
-        console.log(json.error);
+        console.log(`error: ${json.error}`);
         return;
       }
       isConnected = true;
-      console.log(json.position);
       x = json.position.x;
       y = json.position.y;
+
+      interval = setInterval(() => {
+        getPlayers().then(players => {
+        // console.log(players);
+        clonePlayers = players;
+        updatePlayer({
+          username: username,
+          x: x,
+          y: y
+        });
+      });
+      }, 40);
       return;
     }
     console.log(`status: ${res.status}`);
   }
 
-  async function disconnect() {
+  function disconnect() {
     isConnected = false;
     username = null;
+    clonePlayers = null;
+    console.log("Disconnect");
+    clearInterval(interval);
   }
 
   onMount(() => {
@@ -148,8 +109,8 @@
       if (keyCode == 39) {
         //arrowright
         x += 3;
-        if (x > 300) {
-          x = 300;
+        if (x > 280) {
+          x = 280;
         }
         return;
       }
@@ -162,7 +123,6 @@
     }
     if (count == 180) {
       let elapsed = timestamp - start;
-      // console.log('elapsed: ', elapsed);
       console.log("fps: ", (count * 1000) / elapsed);
       start = timestamp;
       count = 0;
@@ -175,6 +135,47 @@
     }
     count += 1;
     requestAnimationFrame(loop);
+  }
+
+  onDestroy(() => {
+    console.log("onDestroy");
+    clearInterval(interval);
+  });
+
+  async function getPlayers() {
+    const res = await fetch("http://localhost:3000");
+    if (res.ok) {
+      const json = await res.json();
+      return json;
+    }
+  }
+
+  async function updatePlayer(player) {
+    // console.log("update player");
+    try {
+      const res = await fetch("http://localhost:3000/players" , {
+        method: "PUT",
+          headers: {
+            "Content-Type": "application/json;charset=utf-8"
+          },
+          body: JSON.stringify({
+            player: {
+              username: player.username,
+              x: x,
+              y: y
+            }
+          })
+        }
+      );
+      if (res.ok){
+        const json = await res.json();
+        if ( !json.error ){
+          console.log(json.error);
+        }
+      }
+    } catch (e) {
+      console.log(e.message);
+    }
   }
 </script>
 
@@ -201,6 +202,9 @@
     main {
       max-width: none;
     }
+  }
+  span {
+    display: block;
   }
 </style>
 
