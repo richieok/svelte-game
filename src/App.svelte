@@ -18,6 +18,7 @@
   let clonePlayers;
   let step = 1;
   let rampMax10 = rampMotion(10);
+  let graphicsStatus = "POOF!";
 
   function rampMotion(max) {
     return function() {
@@ -38,16 +39,16 @@
     if (!clonePlayers) {
       return;
     }
-    context.fillStyle = "rgb(0, 0, 0)";
-    context.fillRect(0, 0, 300, 300);
+    gl.fillStyle = "rgb(0, 0, 0)";
+    gl.fillRect(0, 0, 300, 300);
     for (let player of clonePlayers) {
       if (player.username == username) {
-        context.fillStyle = color;
-        context.fillRect(player.x - 20, 240, width, height);
+        gl.fillStyle = color;
+        gl.fillRect(player.x - 20, 240, width, height);
         continue;
       }
-      context.fillStyle = "rgb(200, 0, 0)";
-      context.fillRect(player.x - 20, 20, width, height);
+      gl.fillStyle = "rgb(200, 0, 0)";
+      gl.fillRect(player.x - 20, 20, width, height);
     }
   }
 
@@ -100,13 +101,21 @@
   }
 
   onMount(() => {
-    context = canvas.getContext("2d");
-    frame = requestAnimationFrame(loop);
+    console.log('onMount');
+    gl = canvas.getContext("webgl");
+    if (gl === null){
+      graphicsStatus = "No webGl";
+      return;
+    }
+    graphicsStatus = "webGl ready";
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    // frame = requestAnimationFrame(loop);
 
-    return () => {
-      cancelAnimationFrame(frame);
-      clearInterval(interval);
-    };
+    // return () => {
+    //   cancelAnimationFrame(frame);
+    //   clearInterval(interval);
+    // };
   });
 
   function keydown(e) {
@@ -163,17 +172,12 @@
     if (isConnected) {
       drawPlayers();
     } else {
-      context.fillStyle = "rgb(256, 256, 256)";
-      context.fillRect(0, 0, 300, 300);
+      gl.fillStyle = "rgb(256, 256, 256)";
+      gl.fillRect(0, 0, 300, 300);
     }
     count += 1;
     requestAnimationFrame(loop);
   }
-
-  onDestroy(() => {
-    console.log("onDestroy");
-    clearInterval(interval);
-  });
 
   async function getPlayers() {
     const res = await fetch("http://localhost:3000");
@@ -241,6 +245,7 @@
 
 <main>
   <div class="container">
+    <span>{graphicsStatus}</span>
     {#if !isConnected}
       <label for="username">Username:</label>
       <input type="text" bind:value={username} id="username" />
