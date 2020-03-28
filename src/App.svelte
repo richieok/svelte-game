@@ -16,6 +16,19 @@
   let count = 0;
   let start = null;
   let clonePlayers;
+  let step = 1;
+  let rampMax10 = rampMotion(10);
+
+  function rampMotion(max) {
+    return function() {
+      step *= 2;
+      if (step > max) {
+        return max;
+      } else {
+        return step;
+      }
+    };
+  }
 
   // $: {
   //   console.log(`x: ${x}, y: ${y}`);
@@ -64,14 +77,14 @@
 
       interval = setInterval(() => {
         getPlayers().then(players => {
-        // console.log(players);
-        clonePlayers = players;
-        updatePlayer({
-          username: username,
-          x: x,
-          y: y
+          // console.log(players);
+          clonePlayers = players;
+          updatePlayer({
+            username: username,
+            x: x,
+            y: y
+          });
         });
-      });
       }, 40);
       return;
     }
@@ -92,27 +105,47 @@
 
     return () => {
       cancelAnimationFrame(frame);
+      clearInterval(interval);
     };
   });
 
   function keydown(e) {
     if (isConnected) {
       keyCode = e.keyCode;
-      if (keyCode == 37) {
-        //arrowleft
-        x -= 3;
-        if (x < 20) {
-          x = 20;
-        }
-        return;
+      switch (keyCode) {
+        case 37: //LEFT ARROW
+          // x -= 3;
+          if (x == 20) {
+            break;
+          }
+          x -= rampMax10();
+          if (x < 20) {
+            x = 20;
+          }
+          break;
+        case 39: //RIGHT ARROW
+          // x += 3;
+          if (x == 280) {
+            break;
+          }
+          x += rampMax10();
+          if (x > 280) {
+            x = 280;
+          }
+          break;
+        default:
       }
-      if (keyCode == 39) {
-        //arrowright
-        x += 3;
-        if (x > 280) {
-          x = 280;
-        }
-        return;
+    }
+  }
+
+  function keyup(e) {
+    if (isConnected) {
+      let kcode = e.keyCode;
+      switch (kcode) {
+        case 37:
+        case 39:
+          step = 1;
+        default:
       }
     }
   }
@@ -153,24 +186,23 @@
   async function updatePlayer(player) {
     // console.log("update player");
     try {
-      const res = await fetch("http://localhost:3000/players" , {
+      const res = await fetch("http://localhost:3000/players", {
         method: "PUT",
-          headers: {
-            "Content-Type": "application/json;charset=utf-8"
-          },
-          body: JSON.stringify({
-            player: {
-              username: player.username,
-              x: x,
-              y: y
-            }
-          })
-        }
-      );
-      if (res.ok){
+        headers: {
+          "Content-Type": "application/json;charset=utf-8"
+        },
+        body: JSON.stringify({
+          player: {
+            username: player.username,
+            x: x,
+            y: y
+          }
+        })
+      });
+      if (res.ok) {
         const json = await res.json();
-        if ( !json.error ){
-          console.log(json.error);
+        if (json.error) {
+          console.log(`json.error: ${json.error}`);
         }
       }
     } catch (e) {
@@ -191,29 +223,28 @@
     padding: 1em 0;
   }
 
-  h1 {
+  /* h1 {
     color: #ff3e00;
     text-transform: uppercase;
     font-size: 4em;
     font-weight: 100;
-  }
+  } */
 
   @media (min-width: 640px) {
     main {
       max-width: none;
     }
   }
-  span {
-    display: block;
-  }
 </style>
 
-<svelte:window on:keydown={keydown} />
+<svelte:window on:keydown={keydown} on:keyup={keyup} />
 
 <main>
   <div class="container">
-    <label for="">Username:</label>
-    <input type="text" bind:value={username} />
+    {#if !isConnected}
+      <label for="username">Username:</label>
+      <input type="text" bind:value={username} id="username" />
+    {/if}
     {#if isConnected}
       <button on:click={disconnect}>Disconnect</button>
     {:else}
