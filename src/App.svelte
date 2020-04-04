@@ -19,6 +19,11 @@
   let step = 1;
   let rampMax10 = rampMotion(10);
   let graphicsStatus;
+  const positions2 = [
+  0, 0,
+  0, 0.5,
+  0.7, 0,
+];
 
   const vsSource = `
     attribute vec4 aVertexPosition;
@@ -34,6 +39,22 @@
   const fsSource = `
     void main() {
       gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    }
+  `;
+
+  const vsSource2 = `
+    attribute vec4 a_position;
+
+    void main() {
+      gl_Position = a_position;
+    }
+  `;
+
+  const fsSource2 = `
+    precision mediump float;
+ 
+    void main() {
+      gl_FragColor = vec4(1, 0, 0.5, 1);
     }
   `;
 
@@ -292,6 +313,7 @@
     }
     graphicsStatus = "webGl ready";
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+    const shaderProgram2 = initShaderProgram(gl, vsSource2, fsSource2);
     const programInfo = {
       program: shaderProgram,
       attribLocations: {
@@ -308,8 +330,17 @@
         )
       }
     };
+    const positionAttributeLocation = gl.getAttribLocation(shaderProgram2, "a_position");
+    const posBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions2), gl.STATIC_DRAW);
     const buffers = initBuffers(gl);
     drawScene(gl, programInfo, buffers);
+    gl.useProgram(shaderProgram2);
+    gl.enableVertexAttribArray(positionAttributeLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     // frame = requestAnimationFrame(loop);
 
