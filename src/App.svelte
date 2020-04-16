@@ -34,14 +34,10 @@
   let step = 1;
   let rampMax10 = rampMotion(10);
   let graphicsStatus;
-  const positions2 = [
-    10, 20,
-    80, 20,
-    10, 30,
-    10, 30,
-    80, 20,
-    80, 30
-  ];
+  const positions2 = [10, 20, 80, 20, 10, 30, 10, 30, 80, 20, 80, 30];
+  const projectionMatrix = mat4.create();
+  const modelViewMatrix = mat4.create();
+  let mesh = null;
 
   const vsSource = `
     attribute vec4 aVertexPosition;
@@ -77,6 +73,60 @@
       gl_FragColor = vec4(1, 0, 0.5, 1);
     }
   `;
+
+  class Node2 {
+    constructor() {
+      this.children = [];
+      this.worldMatrix = mat4.create();
+      this.localMatrix = mat4.create();
+    }
+    setParent(parent) {
+      // remove us from our parent
+      if (this.parent) {
+        let ndx = this.parent.children.indexOf(this);
+        if (ndx >= 0) {
+          this.parent.children.splice(ndx, 1);
+        }
+      }
+      if (parent) {
+        //Prevent making a Node it's own parent
+        if (this === parent) {
+          console.log("Can't be your own parent");
+          return 0;
+        }
+        for (
+          let upperParent = parent.parent;
+          ;
+          upperParent = upperParent.parent
+        ) {
+          if (!upperParent) {
+            break;
+          }
+          if (this === upperParent) {
+            console.log("This Node Can't be it's own Grandparent");
+            return 0;
+          }
+          // upperParent = upperParent.parent;
+          console.log("in loop...");
+        }
+        parent.children.push(this);
+      }
+      this.parent = parent;
+    }
+  }
+
+  const programInfo = {
+    program: null,
+    attribLocations: null,
+    uniformLocations: {
+      projectionMatrix: null,
+      modelViewMatrix: null
+    }
+  };
+  const program2Info = {
+    program: null,
+    positionAttributeLocation: null
+  };
 
   function initShaderProgram(gl, vsSource, fsSource) {
     const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
@@ -156,8 +206,52 @@
     };
   }
 
-  function drawScene(gl, programInfo, buffers) {
-    
+  function draw(timestamp) {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(programInfo.program);
+
+    gl.uniformMatrix4fv(
+      programInfo.uniformLocations.projectionMatrix,
+      false,
+      projectionMatrix
+    );
+    gl.uniformMatrix4fv(
+      programInfo.uniformLocations.modelViewMatrix,
+      false,
+      modelViewMatrix
+    );
+    gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertexBuffer);
+    gl.vertexAttribPointer(
+      programInfo.attribLocations.vertexPosition,
+      mesh.vertexBuffer.itemSize,
+      gl.FLOAT,
+      false,
+      0,
+      0
+    );
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
+    gl.drawElements(gl.LINES, mesh.indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+
+    gl.useProgram(program2Info.program);
+    let u_matrix = mat3.fromValues(
+      2 / gl.canvas.width, 0, 0,
+      0, -2 / gl.canvas.height, 0,
+      -1, 1, 1
+    );
+    gl.uniformMatrix3fv(program2Info.resolutionUniformLocation, false, u_matrix);
+    gl.enableVertexAttribArray(program2Info.positionAttributeLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, program2Info.buffers.posBuffer);
+    gl.vertexAttribPointer(
+      program2Info.positionAttributeLocation,
+      2,
+      gl.FLOAT,
+      false,
+      0,
+      0
+    );
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(draw);
   }
 
   function rampMotion(max) {
@@ -247,32 +341,39 @@
       graphicsStatus = "No webGl";
       return;
     }
+    let testNode = new Node2();
+    let secondNode = new Node2();
+    let thirdNode = new Node2();
+    secondNode.setParent(testNode);
+    thirdNode.setParent(secondNode);
+    testNode.setParent(secondNode);
+    console.log(testNode);
     graphicsStatus = "webGl ready";
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
     const shaderProgram2 = initShaderProgram(gl, vsSource2, fsSource2);
-    const programInfo = {
-      program: shaderProgram,
-      attribLocations: {
-        vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition")
-      },
-      uniformLocations: {
-        projectionMatrix: gl.getUniformLocation(
-          shaderProgram,
-          "uProjectionMatrix"
-        ),
-        modelViewMatrix: gl.getUniformLocation(
-          shaderProgram,
-          "uModelViewMatrix"
-        )
-      }
+    programInfo.program = shaderProgram;
+    programInfo.attribLocations = {
+      vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition")
     };
-    const positionAttributeLocation = gl.getAttribLocation(
+    programInfo.uniformLocations = {
+      projectionMatrix: gl.getUniformLocation(
+        shaderProgram,
+        "uProjectionMatrix"
+      ),
+      modelViewMatrix: gl.getUniformLocation(shaderProgram, "uModelViewMatrix")
+    };
+    program2Info.program = shaderProgram2;
+    program2Info.positionAttributeLocation = gl.getAttribLocation(
       shaderProgram2,
       "a_position"
     );
-    const resolutionUniformLocation = gl.getUniformLocation(shaderProgram2, "u_matrix");
-    const posBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    program2Info.resolutionUniformLocation = gl.getUniformLocation(
+      shaderProgram2,
+      "u_matrix"
+    );
+    program2Info.buffers = {};
+    program2Info.buffers.posBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, program2Info.buffers.posBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
       new Float32Array(positions2),
@@ -281,15 +382,12 @@
     // const buffers = initBuffers(gl);
     // drawScene(gl, programInfo, buffers);
 
-    let houseModel = downloadFile('anvil.obj');
+    let houseModel = downloadFile("egg.obj");
     const fieldOfView = (45 * Math.PI) / 180; // in radians
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const zNear = 0.1;
     const zFar = 100.0;
-    const projectionMatrix = mat4.create();
     mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
-
-    const modelViewMatrix = mat4.create();
 
     mat4.translate(
       modelViewMatrix, // destination matrix
@@ -297,60 +395,17 @@
       [0.0, 0.0, -10.0]
     ); // amount to translate
 
+    gl.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black, fully opaque
+    gl.clearDepth(1.0); // Clear everything
+    gl.enable(gl.DEPTH_TEST); // Enable depth testing
+    gl.depthFunc(gl.LEQUAL); // Near things obscure far things
+
     houseModel.then(result => {
       // console.log(result);
-      let mesh = new OBJ.Mesh(result);
-      {
-        gl.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black, fully opaque
-        gl.clearDepth(1.0); // Clear everything
-        gl.enable(gl.DEPTH_TEST); // Enable depth testing
-        gl.depthFunc(gl.LEQUAL); // Near things obscure far things
-
-        // Clear the canvas before we start drawing on it.
-
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.useProgram(programInfo.program);
-
-        gl.uniformMatrix4fv(
-          programInfo.uniformLocations.projectionMatrix,
-          false,
-          projectionMatrix
-        );
-        gl.uniformMatrix4fv(
-          programInfo.uniformLocations.modelViewMatrix,
-          false,
-          modelViewMatrix
-        );
-        OBJ.initMeshBuffers(gl, mesh);
-        gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
-        gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertexBuffer);
-        gl.vertexAttribPointer(
-          programInfo.attribLocations.vertexPosition,
-          mesh.vertexBuffer.itemSize,
-          gl.FLOAT,
-          false, 0, 0
-        );
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
-        gl.drawElements(gl.LINE_LOOP, mesh.indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
-      }
-      gl.useProgram(shaderProgram2);
-      let u_matrix = mat3.fromValues(2/gl.canvas.width, 0, 0, 0, -2/gl.canvas.height, 0, -1, 1, 1);
-      gl.uniformMatrix3fv(resolutionUniformLocation, false, u_matrix);
-      gl.enableVertexAttribArray(positionAttributeLocation);
-      gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-      gl.vertexAttribPointer(
-        positionAttributeLocation,
-        2,
-        gl.FLOAT,
-        false,
-        0,
-        0
-      );
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      mesh = new OBJ.Mesh(result);
+      OBJ.initMeshBuffers(gl, mesh);
+      requestAnimationFrame(draw);
     });
-
-    // frame = requestAnimationFrame(loop);
-
     // return () => {
     //   cancelAnimationFrame(frame);
     //   clearInterval(interval);
