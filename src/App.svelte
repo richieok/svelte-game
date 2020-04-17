@@ -15,6 +15,39 @@
 
 <script>
   import { onMount, onDestroy } from "svelte";
+
+  class Camera {
+    constructor() {
+      this._position = mat4.create();
+      this._target = mat4.create();
+      this._viewMatrix = mat4.create();
+      this.update();
+    }
+    setPosition(position){
+      if (position){
+        mat4.fromTranslation(this._position, position);
+        this.update();
+      }
+    }
+    setTarget(target){
+      if (target){
+        mat4.copy(this._target, target);
+        this.update();
+      }
+    }
+    getViewMatrix(matrix){
+      mat4.copy(matrix, this._viewMatrix);
+    }
+    update(){
+      // mat4.invert(this._viewMatrix, this._position);
+      mat4.lookAt(this._viewMatrix, cameraPos, [0, 0, 0], [0, 1, 0]);
+      // mat4.invert(this._viewMatrix, this._viewMatrix);
+      console.log(this._viewMatrix);
+      // console.log(this._position);
+    }
+  }
+
+  const C_STEP = 0.1;
   let username;
   let x;
   let y;
@@ -31,12 +64,16 @@
   let count = 0;
   let start = null;
   let clonePlayers;
-  let step = 1;
-  let rampMax10 = rampMotion(10);
+  let step = C_STEP;
+  let rampMax10 = rampMotion(1.5);
   let graphicsStatus;
+  let fps;
   const positions2 = [10, 20, 80, 20, 10, 30, 10, 30, 80, 20, 80, 30];
   const projectionMatrix = mat4.create();
-  const modelViewMatrix = mat4.create();
+  const cameraMat = mat4.create();
+  let camera;
+  let cameraPos = [0, 5, 10];
+
   let mesh = null;
 
   const vsSource = `
@@ -79,6 +116,7 @@
       this.children = [];
       this.worldMatrix = mat4.create();
       this.localMatrix = mat4.create();
+      this.setParent = this.setParent.bind(this);
     }
     setParent(parent) {
       // remove us from our parent
@@ -94,11 +132,7 @@
           console.log("Can't be your own parent");
           return 0;
         }
-        for (
-          let upperParent = parent.parent;
-          ;
-          upperParent = upperParent.parent
-        ) {
+        for (let upperParent = parent.parent;;upperParent = upperParent.parent) {
           if (!upperParent) {
             break;
           }
@@ -181,32 +215,18 @@
     return shader;
   }
 
-  function initBuffers(gl) {
-    // Create a buffer for the square's positions.
-
-    const positionBuffer = gl.createBuffer();
-
-    // Select the positionBuffer as the one to apply buffer
-    // operations to from here out.
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-    // Now create an array of positions for the square.
-
-    const positions = [-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0];
-
-    // Now pass the list of positions into WebGL to build the
-    // shape. We do this by creating a Float32Array from the
-    // JavaScript array, then use it to fill the current buffer.
-
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-    return {
-      position: positionBuffer
-    };
-  }
-
   function draw(timestamp) {
+    resize(gl.canvas);
+    const fieldOfView = (45 * Math.PI) / 180; // in radians
+    const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+    const zNear = 0.1;
+    const zFar = 100.0;
+    mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
+    const modelViewMatrix = mat4.create();
+    // mat4.fromTranslation(cameraMat, [ 0, 0, 10]);
+    // mat4.invert(modelViewMatrix, cameraMat);
+    camera.getViewMatrix(modelViewMatrix);
+    frameRate(timestamp);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(programInfo.program);
 
@@ -235,11 +255,21 @@
 
     gl.useProgram(program2Info.program);
     let u_matrix = mat3.fromValues(
-      2 / gl.canvas.width, 0, 0,
-      0, -2 / gl.canvas.height, 0,
-      -1, 1, 1
+      2 / gl.canvas.width,
+      0,
+      0,
+      0,
+      -2 / gl.canvas.height,
+      0,
+      -1,
+      1,
+      1
     );
-    gl.uniformMatrix3fv(program2Info.resolutionUniformLocation, false, u_matrix);
+    gl.uniformMatrix3fv(
+      program2Info.resolutionUniformLocation,
+      false,
+      u_matrix
+    );
     gl.enableVertexAttribArray(program2Info.positionAttributeLocation);
     gl.bindBuffer(gl.ARRAY_BUFFER, program2Info.buffers.posBuffer);
     gl.vertexAttribPointer(
@@ -256,7 +286,7 @@
 
   function rampMotion(max) {
     return function() {
-      step *= 2;
+      step *= 1.1;
       if (step > max) {
         return max;
       } else {
@@ -341,6 +371,8 @@
       graphicsStatus = "No webGl";
       return;
     }
+    camera = new Camera();
+    camera.setPosition(cameraPos);
     let testNode = new Node2();
     let secondNode = new Node2();
     let thirdNode = new Node2();
@@ -379,21 +411,13 @@
       new Float32Array(positions2),
       gl.STATIC_DRAW
     );
-    // const buffers = initBuffers(gl);
-    // drawScene(gl, programInfo, buffers);
 
-    let houseModel = downloadFile("egg.obj");
+    let houseModel = downloadFile("anvil.obj");
     const fieldOfView = (45 * Math.PI) / 180; // in radians
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const zNear = 0.1;
     const zFar = 100.0;
     mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
-
-    mat4.translate(
-      modelViewMatrix, // destination matrix
-      modelViewMatrix, // matrix to translate
-      [0.0, 0.0, -10.0]
-    ); // amount to translate
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black, fully opaque
     gl.clearDepth(1.0); // Clear everything
@@ -404,37 +428,30 @@
       // console.log(result);
       mesh = new OBJ.Mesh(result);
       OBJ.initMeshBuffers(gl, mesh);
-      requestAnimationFrame(draw);
+      frame = requestAnimationFrame(draw);
     });
-    // return () => {
-    //   cancelAnimationFrame(frame);
-    //   clearInterval(interval);
-    // };
+    return () => {
+      cancelAnimationFrame(frame);
+      // clearInterval(interval);
+    };
   });
 
   function keydown(e) {
-    if (isConnected) {
+    if (camera) {
+      console.log(cameraPos);
       keyCode = e.keyCode;
       switch (keyCode) {
         case 37: //LEFT ARROW
-          // x -= 3;
-          if (x == 20) {
-            break;
-          }
-          x -= rampMax10();
-          if (x < 20) {
-            x = 20;
-          }
+          // x -= rampMax10();
+          cameraPos[0] -= rampMax10();
+          // console.log(cameraPos);
+          camera.setPosition(cameraPos);
           break;
         case 39: //RIGHT ARROW
-          // x += 3;
-          if (x == 280) {
-            break;
-          }
-          x += rampMax10();
-          if (x > 280) {
-            x = 280;
-          }
+          // x += rampMax10();
+          cameraPos[0] += rampMax10();
+          // console.log(cameraPos);
+          camera.setPosition(cameraPos);
           break;
         default:
       }
@@ -442,34 +459,39 @@
   }
 
   function keyup(e) {
-    if (isConnected) {
+    if (camera) {
       let kcode = e.keyCode;
       switch (kcode) {
         case 37:
         case 39:
-          step = 1;
+          step = C_STEP;
         default:
       }
     }
   }
 
-  function loop(timestamp) {
+  function frameRate(timestamp) {
     if (!start) {
       start = timestamp;
     }
-    if (count == 180) {
+    if (count == 60) {
       let elapsed = timestamp - start;
-      console.log("fps: ", (count * 1000) / elapsed);
+      // console.log("fps: ", (count * 1000) / elapsed);
+      fps = Math.round((count * 1000) / elapsed);
       start = timestamp;
       count = 0;
     }
+    count += 1;
+  }
+
+  function loop(timestamp) {
+    frameRate(timestamp);
     if (isConnected) {
       drawPlayers();
     } else {
       gl.fillStyle = "rgb(256, 256, 256)";
       gl.fillRect(0, 0, 300, 300);
     }
-    count += 1;
     requestAnimationFrame(loop);
   }
 
@@ -518,7 +540,9 @@
   }
 
   .container {
+    position: relative;
     padding: 1em 0;
+    margin: auto;
   }
 
   /* h1 {
@@ -532,6 +556,18 @@
     main {
       max-width: none;
     }
+  }
+
+  #overlay {
+    color: cornflowerblue;
+    position: absolute;
+    left: 10px;
+    top: 10px;
+  }
+
+  #canvas {
+    width: 720px;
+    height: 480px;
   }
 </style>
 
@@ -551,6 +587,14 @@
     {/if}
   </div>
   <div class="container">
-    <canvas bind:this={canvas} width="300" height="300" />
+    <canvas bind:this={canvas} width="300px" height="300px"/>
+    <div id="overlay">
+      {#if fps}
+        <div>
+          fps:
+          <span>{fps}</span>
+        </div>
+      {/if}
+    </div>
   </div>
 </main>
