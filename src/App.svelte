@@ -18,36 +18,76 @@
 
   class Camera {
     constructor() {
-      this._position = mat4.create();
-      this._target = mat4.create();
-      this._viewMatrix = mat4.create();
-      this.update();
+      this._vposition = vec3.create();
+      this._vdirection = vec3.create();
+      this._camMat = mat4.create();
+      this._camRadX = 0.0;
+      this._camRadY = 0.0;
+      vec3.set(this._vdirection, 0, 0, -1);
     }
     setPosition(position){
       if (position){
-        mat4.fromTranslation(this._position, position);
-        this.update();
+        console.log('setting position');
+        console.log(position);
+        vec3.set(this._vposition, position[0], position[1], position[2]);
+        console.log(this._vposition);
       }
+    }
+    getPosition(){
+      return this._vposition;
     }
     setTarget(target){
       if (target){
-        mat4.copy(this._target, target);
-        this.update();
+        
       }
     }
-    getViewMatrix(matrix){
-      mat4.copy(matrix, this._viewMatrix);
+    getTarget(){
+      
     }
-    update(){
-      // mat4.invert(this._viewMatrix, this._position);
-      mat4.lookAt(this._viewMatrix, cameraPos, [0, 0, 0], [0, 1, 0]);
-      // mat4.invert(this._viewMatrix, this._viewMatrix);
-      console.log(this._viewMatrix);
-      // console.log(this._position);
+    getViewMatrix(matrix){
+      if (matrix){
+        mat4.fromTranslation(this._camMat, this._vposition);
+        mat4.rotate(this._camMat, this._camMat, this._camRadY, [0, 1, 0]);
+        mat4.invert(matrix, this._camMat);
+      }
+    }
+    turnRadY(rad){
+      if(rad){
+        this._camRadY += rad;
+        vec3.rotateY(this._vdirection, this._vdirection, [0, 0, 0], rad);
+      }
+    }
+    moveZ(delta){
+      if(delta){
+        let vdisplacement = vec3.create();
+        vec3.scale(vdisplacement, this._vdirection, delta);
+        vec3.add(this._vposition, this._vposition, vdisplacement);
+      }
     }
   }
 
-  const C_STEP = 0.1;
+  class MotionRamp{
+    constructor(){
+      this._step = 1.0;
+      this.interval = 1000.0;
+      this.duration = 0.0;
+      this.rampFunc = this.rampFunc.bind(this);
+    }
+    rampFunc(timedelta){
+      this.duration += timedelta;
+      if (timedelta == 0){
+        return 0;
+      }
+      if (this.duration >= this.interval){
+        return this._step * (timedelta / 1000); //steps per millisecond
+      }
+      return this._step * (timedelta / 1000) * (this.duration/this.interval);
+    }
+    resetDuration(){
+      this.duration = 0.0;
+    }
+  }
+
   let username;
   let x;
   let y;
@@ -63,16 +103,19 @@
   let height = 40;
   let count = 0;
   let start = null;
+  let fpsStart;
+  let previousTime;
   let clonePlayers;
-  let step = C_STEP;
-  let rampMax10 = rampMotion(1.5);
   let graphicsStatus;
   let fps;
   const positions2 = [10, 20, 80, 20, 10, 30, 10, 30, 80, 20, 80, 30];
   const projectionMatrix = mat4.create();
-  const cameraMat = mat4.create();
   let camera;
-  let cameraPos = [0, 5, 10];
+  let motionRamper;
+  let zMotionRamper;
+  let targetPos = [0, 0, 0];
+  let radY = 0.0;
+  let keySet = new Set();
 
   let mesh = null;
 
@@ -216,15 +259,33 @@
   }
 
   function draw(timestamp) {
+    if (!start) {
+      start = timestamp;
+      previousTime = timestamp;
+    }
+    const timedelta = timestamp - previousTime;
     resize(gl.canvas);
     const fieldOfView = (45 * Math.PI) / 180; // in radians
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const zNear = 0.1;
     const zFar = 100.0;
     mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
+    if (keySet.size){
+      for( let code of keySet){
+        if (code == 37){
+          camera.turnRadY(glMatrix.toRadian(motionRamper.rampFunc(timedelta)));
+        } else if (code == 39){
+          camera.turnRadY(-glMatrix.toRadian(motionRamper.rampFunc(timedelta)));
+        }
+        if (code == 38) {
+          camera.moveZ(zMotionRamper.rampFunc(timedelta));
+        } else if (code == 40){
+          camera.moveZ(-zMotionRamper.rampFunc(timedelta));
+        }
+      }
+      // console.log(keySet);
+    }
     const modelViewMatrix = mat4.create();
-    // mat4.fromTranslation(cameraMat, [ 0, 0, 10]);
-    // mat4.invert(modelViewMatrix, cameraMat);
     camera.getViewMatrix(modelViewMatrix);
     frameRate(timestamp);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -281,24 +342,23 @@
       0
     );
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+    previousTime = timestamp;
     requestAnimationFrame(draw);
   }
 
-  function rampMotion(max) {
+  function rampMotion(max, tracked, multiplier=1.1) {
+    if (!tracked){
+      throw new Error("rampMotion tracked parameter not provided");
+    }
     return function() {
-      step *= 1.1;
-      if (step > max) {
-        return max;
-      } else {
-        return step;
+      tracked.delta *= 1.1;
+      if (tracked.delta > max) {
+        tracked.delta = max;
       }
+      return tracked.delta;
     };
   }
-
-  // $: {
-  //   console.log(`x: ${x}, y: ${y}`);
-  // }
-
+  
   function drawPlayers() {
     if (!clonePlayers) {
       return;
@@ -372,7 +432,12 @@
       return;
     }
     camera = new Camera();
-    camera.setPosition(cameraPos);
+    camera.setPosition([0, 0, 10]);
+    motionRamper = new MotionRamp();
+    motionRamper._step = 90;
+    zMotionRamper = new MotionRamp();
+    zMotionRamper._step = 5.0;
+    zMotionRamper.interval = 500.0;
     let testNode = new Node2();
     let secondNode = new Node2();
     let thirdNode = new Node2();
@@ -438,47 +503,44 @@
 
   function keydown(e) {
     if (camera) {
-      console.log(cameraPos);
+      // console.log(targetPos);
       keyCode = e.keyCode;
-      switch (keyCode) {
-        case 37: //LEFT ARROW
-          // x -= rampMax10();
-          cameraPos[0] -= rampMax10();
-          // console.log(cameraPos);
-          camera.setPosition(cameraPos);
-          break;
-        case 39: //RIGHT ARROW
-          // x += rampMax10();
-          cameraPos[0] += rampMax10();
-          // console.log(cameraPos);
-          camera.setPosition(cameraPos);
-          break;
-        default:
+      if (keyCode == 37){ //LEFT ARROW
+        keySet.add(keyCode);
+      } else if (keyCode == 39){  //RIGHT ARROW
+        keySet.add(keyCode);
       }
+      if (keyCode == 38){
+        keySet.add(keyCode);
+      } else if (keyCode == 40){
+        keySet.add(keyCode);
+      }
+      if (keyCode == 67){ // c
+        console.log(camera.getPosition());
+      }
+      console.log(keyCode);
     }
   }
 
   function keyup(e) {
     if (camera) {
       let kcode = e.keyCode;
-      switch (kcode) {
-        case 37:
-        case 39:
-          step = C_STEP;
-        default:
+      keySet.delete(kcode)
+      if (kcode == 37 || 39){
+        motionRamper.resetDuration();
+      }
+      if (kcode == 38 || 40){
+        zMotionRamper.resetDuration();
       }
     }
   }
 
   function frameRate(timestamp) {
-    if (!start) {
-      start = timestamp;
-    }
     if (count == 60) {
-      let elapsed = timestamp - start;
+      let elapsed = timestamp - fpsStart;
       // console.log("fps: ", (count * 1000) / elapsed);
       fps = Math.round((count * 1000) / elapsed);
-      start = timestamp;
+      fpsStart = timestamp;
       count = 0;
     }
     count += 1;
