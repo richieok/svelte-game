@@ -24,6 +24,12 @@
       this._camRadX = 0.0;
       this._camRadY = 0.0;
       vec3.set(this._vdirection, 0, 0, -1);
+      this.setPosition = this.setPosition.bind(this);
+      this.getPosition =  this.getPosition.bind(this);
+      this.getViewMatrix = this.getViewMatrix.bind(this);
+      this.turnRadY = this.turnRadY.bind(this);
+      this.moveZ = this.moveZ.bind(this);
+      this.moveX = this.moveX.bind(this);
     }
     setPosition(position){
       if (position){
@@ -64,6 +70,13 @@
         vec3.add(this._vposition, this._vposition, vdisplacement);
       }
     }
+    moveX(delta){
+      let cross = vec3.create();
+      let vdisplacement = vec3.create();
+      vec3.cross(cross, this._vdirection, [0, 1, 0]);
+      vec3.scale(vdisplacement, cross, delta);
+      vec3.add(this._vposition, this._vposition, vdisplacement);
+    }
   }
 
   class MotionRamp{
@@ -72,6 +85,7 @@
       this.interval = 1000.0;
       this.duration = 0.0;
       this.rampFunc = this.rampFunc.bind(this);
+      this.resetDuration = this.resetDuration.bind(this);
     }
     rampFunc(timedelta){
       this.duration += timedelta;
@@ -111,8 +125,9 @@
   const positions2 = [10, 20, 80, 20, 10, 30, 10, 30, 80, 20, 80, 30];
   const projectionMatrix = mat4.create();
   let camera;
-  let motionRamper;
+  let axisYMotionRamper;
   let zMotionRamper;
+  let xMotionramper;
   let targetPos = [0, 0, 0];
   let radY = 0.0;
   let keySet = new Set();
@@ -273,14 +288,19 @@
     if (keySet.size){
       for( let code of keySet){
         if (code == 37){
-          camera.turnRadY(glMatrix.toRadian(motionRamper.rampFunc(timedelta)));
+          camera.turnRadY(glMatrix.toRadian(axisYMotionRamper.rampFunc(timedelta)));
         } else if (code == 39){
-          camera.turnRadY(-glMatrix.toRadian(motionRamper.rampFunc(timedelta)));
+          camera.turnRadY(-glMatrix.toRadian(axisYMotionRamper.rampFunc(timedelta)));
         }
         if (code == 38) {
           camera.moveZ(zMotionRamper.rampFunc(timedelta));
         } else if (code == 40){
           camera.moveZ(-zMotionRamper.rampFunc(timedelta));
+        }
+        if (code == 68) { //d, go right
+          camera.moveX(xMotionramper.rampFunc(timedelta));
+        } else if (code == 65) {
+          camera.moveX(-xMotionramper.rampFunc(timedelta));
         }
       }
       // console.log(keySet);
@@ -433,11 +453,14 @@
     }
     camera = new Camera();
     camera.setPosition([0, 0, 10]);
-    motionRamper = new MotionRamp();
-    motionRamper._step = 90;
+    axisYMotionRamper = new MotionRamp();
+    axisYMotionRamper._step = 90;
     zMotionRamper = new MotionRamp();
     zMotionRamper._step = 5.0;
     zMotionRamper.interval = 500.0;
+    xMotionramper = new MotionRamp();
+    xMotionramper._step = 5.0;
+    xMotionramper.interval = 500.0;
     let testNode = new Node2();
     let secondNode = new Node2();
     let thirdNode = new Node2();
@@ -510,9 +533,14 @@
       } else if (keyCode == 39){  //RIGHT ARROW
         keySet.add(keyCode);
       }
-      if (keyCode == 38){
+      if (keyCode == 38){ //up arrow
         keySet.add(keyCode);
-      } else if (keyCode == 40){
+      } else if (keyCode == 40){  //down arrow
+        keySet.add(keyCode);
+      }
+      if (keyCode == 65){ //a
+        keySet.add(keyCode);  //d
+      } else if (keyCode == 68){
         keySet.add(keyCode);
       }
       if (keyCode == 67){ // c
@@ -527,10 +555,13 @@
       let kcode = e.keyCode;
       keySet.delete(kcode)
       if (kcode == 37 || 39){
-        motionRamper.resetDuration();
+        axisYMotionRamper.resetDuration();
       }
       if (kcode == 38 || 40){
         zMotionRamper.resetDuration();
+      }
+      if (kcode == 65 || 68){
+        xMotionramper.resetDuration();
       }
     }
   }
