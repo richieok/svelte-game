@@ -11,128 +11,6 @@
       })
       .catch(err => console.log(err));
   }
-</script>
-
-<script>
-  import { onMount, onDestroy } from "svelte";
-
-  class Camera {
-    constructor() {
-      this._vposition = vec3.create();
-      this._vdirection = vec3.create();
-      this._camMat = mat4.create();
-      this._camRadX = 0.0;
-      this._camRadY = 0.0;
-      vec3.set(this._vdirection, 0, 0, -1);
-      this.setPosition = this.setPosition.bind(this);
-      this.getPosition =  this.getPosition.bind(this);
-      this.getViewMatrix = this.getViewMatrix.bind(this);
-      this.turnRadY = this.turnRadY.bind(this);
-      this.moveZ = this.moveZ.bind(this);
-      this.moveX = this.moveX.bind(this);
-    }
-    setPosition(position){
-      if (position){
-        console.log('setting position');
-        console.log(position);
-        vec3.set(this._vposition, position[0], position[1], position[2]);
-        console.log(this._vposition);
-      }
-    }
-    getPosition(){
-      return this._vposition;
-    }
-    setTarget(target){
-      if (target){
-        
-      }
-    }
-    getTarget(){
-      
-    }
-    getViewMatrix(matrix){
-      if (matrix){
-        mat4.fromTranslation(this._camMat, this._vposition);
-        mat4.rotate(this._camMat, this._camMat, this._camRadY, [0, 1, 0]);
-        mat4.invert(matrix, this._camMat);
-      }
-    }
-    turnRadY(rad){
-      if(rad){
-        this._camRadY += rad;
-        vec3.rotateY(this._vdirection, this._vdirection, [0, 0, 0], rad);
-      }
-    }
-    moveZ(delta){
-      if(delta){
-        let vdisplacement = vec3.create();
-        vec3.scale(vdisplacement, this._vdirection, delta);
-        vec3.add(this._vposition, this._vposition, vdisplacement);
-      }
-    }
-    moveX(delta){
-      let cross = vec3.create();
-      let vdisplacement = vec3.create();
-      vec3.cross(cross, this._vdirection, [0, 1, 0]);
-      vec3.scale(vdisplacement, cross, delta);
-      vec3.add(this._vposition, this._vposition, vdisplacement);
-    }
-  }
-
-  class MotionRamp{
-    constructor(){
-      this._step = 1.0;
-      this.interval = 1000.0;
-      this.duration = 0.0;
-      this.rampFunc = this.rampFunc.bind(this);
-      this.resetDuration = this.resetDuration.bind(this);
-    }
-    rampFunc(timedelta){
-      this.duration += timedelta;
-      if (timedelta == 0){
-        return 0;
-      }
-      if (this.duration >= this.interval){
-        return this._step * (timedelta / 1000); //steps per millisecond
-      }
-      return this._step * (timedelta / 1000) * (this.duration/this.interval);
-    }
-    resetDuration(){
-      this.duration = 0.0;
-    }
-  }
-
-  let username;
-  let x;
-  let y;
-  let isConnected = false;
-  let interval;
-  let canvas;
-  let frame;
-  let gl = null;
-  let key;
-  let keyCode;
-  let color = "rgb(0, 0, 200)";
-  let width = 40;
-  let height = 40;
-  let count = 0;
-  let start = null;
-  let fpsStart;
-  let previousTime;
-  let clonePlayers;
-  let graphicsStatus;
-  let fps;
-  const positions2 = [10, 20, 80, 20, 10, 30, 10, 30, 80, 20, 80, 30];
-  const projectionMatrix = mat4.create();
-  let camera;
-  let axisYMotionRamper;
-  let zMotionRamper;
-  let xMotionramper;
-  let targetPos = [0, 0, 0];
-  let radY = 0.0;
-  let keySet = new Set();
-
-  let mesh = null;
 
   const vsSource = `
     attribute vec4 aVertexPosition;
@@ -168,6 +46,188 @@
       gl_FragColor = vec4(1, 0, 0.5, 1);
     }
   `;
+</script>
+
+<script>
+  import { onMount, onDestroy } from "svelte";
+
+  class Camera {
+    constructor() {
+      this._vposition = vec3.create();
+      this._vdirection = vec3.create();
+      this._camMat = mat4.create();
+      this._camRadX = 0.0;
+      this._camRadY = 0.0;
+      vec3.set(this._vdirection, 0, 0, -1);
+      this.setPosition = this.setPosition.bind(this);
+      this.getPosition = this.getPosition.bind(this);
+      this.getViewMatrix = this.getViewMatrix.bind(this);
+      this.turnRadY = this.turnRadY.bind(this);
+      this.moveZ = this.moveZ.bind(this);
+      this.moveX = this.moveX.bind(this);
+    }
+    setPosition(position) {
+      if (position) {
+        console.log("setting position");
+        console.log(position);
+        vec3.set(this._vposition, position[0], position[1], position[2]);
+        console.log(this._vposition);
+      }
+    }
+    getPosition() {
+      return this._vposition;
+    }
+    setTarget(target) {
+      if (target) {
+      }
+    }
+    getTarget() {}
+    getViewMatrix(matrix) {
+      if (matrix) {
+        mat4.fromTranslation(this._camMat, this._vposition);
+        mat4.rotate(this._camMat, this._camMat, this._camRadY, [0, 1, 0]);
+        mat4.invert(matrix, this._camMat);
+      }
+    }
+    turnRadY(rad) {
+      if (rad) {
+        this._camRadY += rad;
+        vec3.rotateY(this._vdirection, this._vdirection, [0, 0, 0], rad);
+      }
+    }
+    moveZ(delta) {
+      if (delta) {
+        let vdisplacement = vec3.create();
+        vec3.scale(vdisplacement, this._vdirection, delta);
+        vec3.add(this._vposition, this._vposition, vdisplacement);
+      }
+    }
+    moveX(delta) {
+      let cross = vec3.create();
+      let vdisplacement = vec3.create();
+      vec3.cross(cross, this._vdirection, [0, 1, 0]);
+      vec3.scale(vdisplacement, cross, delta);
+      vec3.add(this._vposition, this._vposition, vdisplacement);
+    }
+    moveY(delta) {
+      let vdisplacement = vec3.create();
+      vec3.scale(vdisplacement, [0, 1, 0], delta);
+      vec3.add(this._vposition, this._vposition, vdisplacement);
+    }
+  }
+
+  class LinearRamp {
+    constructor() {
+      this._step = 1.0;
+      this.interval = 1000.0;
+      this.duration = 0.0;
+      this.rampFunc = this.rampFunc.bind(this);
+      this.resetDuration = this.resetDuration.bind(this);
+    }
+    rampFunc(timedelta) {
+      this.duration += timedelta;
+      if (timedelta == 0) {
+        return 0;
+      }
+      if (this.duration >= this.interval) {
+        return this._step * (timedelta / 1000); //steps per millisecond
+      }
+      return this._step * (timedelta / 1000) * (this.duration / this.interval);
+    }
+    resetDuration() {
+      this.duration = 0.0;
+    }
+  }
+
+  class SineRamp {
+    constructor() {
+      this._running = false;
+      this._period = 1000.0;
+      this.duration = 0.0;
+      this._step = 0.1;
+      this.isRunning = this.isRunning.bind(this);
+      this.rampFunc = this.rampFunc.bind(this);
+      this.resetDuration = this.resetDuration.bind(this);
+      this.start = this.start.bind(this);
+    }
+    rampFunc(timedelta) {
+      if (this._running) {
+        this.duration += timedelta;
+        if (timedelta == 0) {
+          return 0;
+        }
+        if (this.duration >= this._period) {
+          this.resetDuration();
+          return 0;
+        }
+        const u =
+          this._step * Math.cos(Math.PI * (this.duration / this._period));
+        // console.log(u);
+        return u;
+      }
+    }
+    start() {
+      this._running = true;
+    }
+    isRunning() {
+      return this._running;
+    }
+    resetDuration() {
+      console.log("SineRamp reset");
+      this.duration = 0.0;
+      this._running = false;
+    }
+  }
+
+  let username;
+  let x;
+  let y;
+  let isConnected = false;
+  let interval;
+  let canvas;
+  let frame;
+  let gl = null;
+  let key;
+  let keyCode;
+  let color = "rgb(0, 0, 200)";
+  let width = 40;
+  let height = 40;
+  let count = 0;
+  let start = null;
+  let fpsStart;
+  let previousTime;
+  let clonePlayers;
+  let graphicsStatus;
+  let fps;
+  const positions2 = [10, 20, 80, 20, 10, 30, 10, 30, 80, 20, 80, 30];
+  const projectionMatrix = mat4.create();
+  let camera;
+  let axisYMotionRamper;
+  let zMotionRamper;
+  let xMotionramper;
+  let jumpMotionRamper;
+  let targetPos = [0, 0, 0];
+  let radY = 0.0;
+  let keySet = new Set();
+
+  let mesh = null;
+  let bevCubeMesh = null;
+
+  const files = {
+    anvil: "anvil.obj",
+    bevCube: "beveledcube.obj",
+    egg: "egg.obj"
+  };
+
+  const nodeInfo = {
+    anvil: null,
+    bevCube: null,
+    egg: null
+  };
+
+  const app = {
+    meshes: {}
+  };
 
   class Node2 {
     constructor() {
@@ -175,6 +235,11 @@
       this.worldMatrix = mat4.create();
       this.localMatrix = mat4.create();
       this.setParent = this.setParent.bind(this);
+      this.updateWorldMatrix = this.updateWorldMatrix.bind(this);
+      this.drawInfo = {
+        programInfo: null,
+        mesh: null
+      };
     }
     setParent(parent) {
       // remove us from our parent
@@ -190,7 +255,11 @@
           console.log("Can't be your own parent");
           return 0;
         }
-        for (let upperParent = parent.parent;;upperParent = upperParent.parent) {
+        for (
+          let upperParent = parent.parent;
+          ;
+          upperParent = upperParent.parent
+        ) {
           if (!upperParent) {
             break;
           }
@@ -204,6 +273,75 @@
         parent.children.push(this);
       }
       this.parent = parent;
+    }
+    updateWorldMatrix(parentWorldMatrix) {
+      if (parentWorldMatrix) {
+        mat4.mul(this.localMatrix, this.parentWorldMatrix, this.worldMatrix);
+      } else {
+        mat4.copy(this.localMatrix, this.worldMatrix);
+      }
+      const worldMatrix = this.worldMatrix;
+      this.children.forEach(child => {
+        child.updateWorldMatrix(worldMatrix);
+      });
+    }
+  }
+
+  function renderNodeGraph(
+    gl,
+    node,
+    previousProgram,
+    projectionMatrix,
+    modelViewMatrix
+  ) {
+    if (Object.keys(node.drawInfo).length) {
+      if (
+        !previousProgram ||
+        previousProgram !== node.drawInfo.programInfo.program
+      ) {
+        gl.useProgram(node.drawInfo.programInfo.program);
+        gl.uniformMatrix4fv(
+          node.drawInfo.programInfo.uniformLocations.projectionMatrix,
+          false,
+          projectionMatrix
+        );
+        gl.uniformMatrix4fv(
+          node.drawInfo.programInfo.uniformLocations.modelViewMatrix,
+          false,
+          modelViewMatrix
+        );
+        gl.enableVertexAttribArray(
+          node.drawInfo.programInfo.attribLocations.vertexPosition
+        );
+        gl.bindBuffer(gl.ARRAY_BUFFER, node.drawInfo.mesh.vertexBuffer);
+        gl.vertexAttribPointer(
+          node.drawInfo.programInfo.attribLocations.vertexPosition,
+          node.drawInfo.mesh.vertexBuffer.itemSize,
+          gl.FLOAT,
+          false,
+          0,
+          0
+        );
+      }
+      //Draw this node
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, node.drawInfo.mesh.indexBuffer);
+      gl.drawElements(
+        gl.LINES,
+        node.drawInfo.mesh.indexBuffer.numItems,
+        gl.UNSIGNED_SHORT,
+        0
+      );
+    }
+    if (node.children.length) {
+      node.children.forEach(childNode => {
+        renderNodeGraph(
+          gl,
+          childNode,
+          previousProgram,
+          projectionMatrix,
+          modelViewMatrix
+        );
+      });
     }
   }
 
@@ -277,27 +415,36 @@
     if (!start) {
       start = timestamp;
       previousTime = timestamp;
+      console.log(app.meshes);
     }
     const timedelta = timestamp - previousTime;
-    resize(gl.canvas);
+    // resize(gl.canvas);
     const fieldOfView = (45 * Math.PI) / 180; // in radians
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const zNear = 0.1;
     const zFar = 100.0;
     mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
-    if (keySet.size){
-      for( let code of keySet){
-        if (code == 37){
-          camera.turnRadY(glMatrix.toRadian(axisYMotionRamper.rampFunc(timedelta)));
-        } else if (code == 39){
-          camera.turnRadY(-glMatrix.toRadian(axisYMotionRamper.rampFunc(timedelta)));
+    if (jumpMotionRamper.isRunning()) {
+      camera.moveY(jumpMotionRamper.rampFunc(timedelta));
+    }
+    if (keySet.size) {
+      for (let code of keySet) {
+        if (code == 37) {
+          camera.turnRadY(
+            glMatrix.toRadian(axisYMotionRamper.rampFunc(timedelta))
+          );
+        } else if (code == 39) {
+          camera.turnRadY(
+            -glMatrix.toRadian(axisYMotionRamper.rampFunc(timedelta))
+          );
         }
         if (code == 38) {
           camera.moveZ(zMotionRamper.rampFunc(timedelta));
-        } else if (code == 40){
+        } else if (code == 40) {
           camera.moveZ(-zMotionRamper.rampFunc(timedelta));
         }
-        if (code == 68) { //d, go right
+        if (code == 68) {
+          //d, go right
           camera.moveX(xMotionramper.rampFunc(timedelta));
         } else if (code == 65) {
           camera.moveX(-xMotionramper.rampFunc(timedelta));
@@ -309,30 +456,44 @@
     camera.getViewMatrix(modelViewMatrix);
     frameRate(timestamp);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.useProgram(programInfo.program);
+    renderNodeGraph(gl, nodeInfo['anvil'], null, projectionMatrix, modelViewMatrix)
+    // gl.useProgram(nodeInfo["anvil"].drawInfo.programInfo.program);
 
-    gl.uniformMatrix4fv(
-      programInfo.uniformLocations.projectionMatrix,
-      false,
-      projectionMatrix
-    );
-    gl.uniformMatrix4fv(
-      programInfo.uniformLocations.modelViewMatrix,
-      false,
-      modelViewMatrix
-    );
-    gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
-    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vertexBuffer);
-    gl.vertexAttribPointer(
-      programInfo.attribLocations.vertexPosition,
-      mesh.vertexBuffer.itemSize,
-      gl.FLOAT,
-      false,
-      0,
-      0
-    );
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.indexBuffer);
-    gl.drawElements(gl.LINES, mesh.indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+    // gl.uniformMatrix4fv(
+    //   nodeInfo["anvil"].drawInfo.programInfo.uniformLocations.projectionMatrix,
+    //   false,
+    //   projectionMatrix
+    // );
+    // gl.uniformMatrix4fv(
+    //   nodeInfo["anvil"].drawInfo.programInfo.uniformLocations.modelViewMatrix,
+    //   false,
+    //   modelViewMatrix
+    // );
+    // gl.enableVertexAttribArray(
+    //   nodeInfo["anvil"].drawInfo.programInfo.attribLocations.vertexPosition
+    // );
+    // gl.bindBuffer(
+    //   gl.ARRAY_BUFFER,
+    //   nodeInfo["anvil"].drawInfo.mesh.vertexBuffer
+    // );
+    // gl.vertexAttribPointer(
+    //   programInfo.attribLocations.vertexPosition,
+    //   nodeInfo["anvil"].drawInfo.mesh.vertexBuffer.itemSize,
+    //   gl.FLOAT,
+    //   false,
+    //   0,
+    //   0
+    // );
+    // gl.bindBuffer(
+    //   gl.ELEMENT_ARRAY_BUFFER,
+    //   nodeInfo["anvil"].drawInfo.mesh.indexBuffer
+    // );
+    // gl.drawElements(
+    //   gl.LINES,
+    //   nodeInfo["anvil"].drawInfo.mesh.indexBuffer.numItems,
+    //   gl.UNSIGNED_SHORT,
+    //   0
+    // );
 
     gl.useProgram(program2Info.program);
     let u_matrix = mat3.fromValues(
@@ -366,8 +527,8 @@
     requestAnimationFrame(draw);
   }
 
-  function rampMotion(max, tracked, multiplier=1.1) {
-    if (!tracked){
+  function rampMotion(max, tracked, multiplier = 1.1) {
+    if (!tracked) {
       throw new Error("rampMotion tracked parameter not provided");
     }
     return function() {
@@ -378,7 +539,7 @@
       return tracked.delta;
     };
   }
-  
+
   function drawPlayers() {
     if (!clonePlayers) {
       return;
@@ -453,21 +614,16 @@
     }
     camera = new Camera();
     camera.setPosition([0, 0, 10]);
-    axisYMotionRamper = new MotionRamp();
+    axisYMotionRamper = new LinearRamp();
     axisYMotionRamper._step = 90;
-    zMotionRamper = new MotionRamp();
+    zMotionRamper = new LinearRamp();
     zMotionRamper._step = 5.0;
     zMotionRamper.interval = 500.0;
-    xMotionramper = new MotionRamp();
+    xMotionramper = new LinearRamp();
     xMotionramper._step = 5.0;
     xMotionramper.interval = 500.0;
-    let testNode = new Node2();
-    let secondNode = new Node2();
-    let thirdNode = new Node2();
-    secondNode.setParent(testNode);
-    thirdNode.setParent(secondNode);
-    testNode.setParent(secondNode);
-    console.log(testNode);
+    jumpMotionRamper = new SineRamp();
+    jumpMotionRamper._period = 700.0;
     graphicsStatus = "webGl ready";
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
     const shaderProgram2 = initShaderProgram(gl, vsSource2, fsSource2);
@@ -500,7 +656,6 @@
       gl.STATIC_DRAW
     );
 
-    let houseModel = downloadFile("anvil.obj");
     const fieldOfView = (45 * Math.PI) / 180; // in radians
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const zNear = 0.1;
@@ -512,12 +667,34 @@
     gl.enable(gl.DEPTH_TEST); // Enable depth testing
     gl.depthFunc(gl.LEQUAL); // Near things obscure far things
 
-    houseModel.then(result => {
-      // console.log(result);
-      mesh = new OBJ.Mesh(result);
-      OBJ.initMeshBuffers(gl, mesh);
-      frame = requestAnimationFrame(draw);
-    });
+    const ksize = Object.keys(files).length;
+    let kcount = 0;
+    for (let name in files) {
+      downloadFile(files[name])
+        .then(result => {
+          app.meshes[name] = new OBJ.Mesh(result);
+          OBJ.initMeshBuffers(gl, app.meshes[name]);
+          kcount += 1;
+          console.log(kcount);
+          if (kcount == ksize) {
+            return true;
+          } else {
+            return false;
+          }
+        })
+        .then(result => {
+          if (result) {
+            for (let name in nodeInfo) {
+              nodeInfo[name] = new Node2();
+              nodeInfo[name].drawInfo.mesh = app.meshes[name];
+              nodeInfo[name].drawInfo.programInfo = programInfo;
+            }
+            nodeInfo["bevCube"].setParent(nodeInfo["anvil"]);
+            nodeInfo["egg"].setParent(nodeInfo["anvil"]);
+            frame = requestAnimationFrame(draw);
+          }
+        });
+    }
     return () => {
       cancelAnimationFrame(frame);
       // clearInterval(interval);
@@ -528,22 +705,32 @@
     if (camera) {
       // console.log(targetPos);
       keyCode = e.keyCode;
-      if (keyCode == 37){ //LEFT ARROW
+      if (keyCode == 37) {
+        //LEFT ARROW
         keySet.add(keyCode);
-      } else if (keyCode == 39){  //RIGHT ARROW
-        keySet.add(keyCode);
-      }
-      if (keyCode == 38){ //up arrow
-        keySet.add(keyCode);
-      } else if (keyCode == 40){  //down arrow
+      } else if (keyCode == 39) {
+        //RIGHT ARROW
         keySet.add(keyCode);
       }
-      if (keyCode == 65){ //a
-        keySet.add(keyCode);  //d
-      } else if (keyCode == 68){
+      if (keyCode == 38) {
+        //up arrow
+        keySet.add(keyCode);
+      } else if (keyCode == 40) {
+        //down arrow
         keySet.add(keyCode);
       }
-      if (keyCode == 67){ // c
+      if (keyCode == 65) {
+        //a
+        keySet.add(keyCode); //d
+      } else if (keyCode == 68) {
+        keySet.add(keyCode);
+      }
+      if (keyCode == 69) {
+        // e : jump
+        jumpMotionRamper.start();
+      }
+      if (keyCode == 67) {
+        // c
         console.log(camera.getPosition());
       }
       console.log(keyCode);
@@ -553,14 +740,16 @@
   function keyup(e) {
     if (camera) {
       let kcode = e.keyCode;
-      keySet.delete(kcode)
-      if (kcode == 37 || 39){
+      if (kcode == 37 || 39) {
+        keySet.delete(kcode);
         axisYMotionRamper.resetDuration();
       }
-      if (kcode == 38 || 40){
+      if (kcode == 38 || 40) {
+        keySet.delete(kcode);
         zMotionRamper.resetDuration();
       }
-      if (kcode == 65 || 68){
+      if (kcode == 65 || 68) {
+        keySet.delete(kcode);
         xMotionramper.resetDuration();
       }
     }
@@ -680,7 +869,7 @@
     {/if}
   </div>
   <div class="container">
-    <canvas bind:this={canvas} width="300px" height="300px"/>
+    <canvas bind:this={canvas} width="300px" height="300px" />
     <div id="overlay">
       {#if fps}
         <div>
