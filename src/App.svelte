@@ -125,10 +125,10 @@
       this.resetDuration = this.resetDuration.bind(this);
     }
     rampFunc(timedelta) {
-      this.duration += timedelta;
       if (timedelta == 0) {
         return 0;
       }
+      this.duration += timedelta;
       if (this.duration >= this.interval) {
         return this._step * (timedelta / 1000); //steps per millisecond
       }
@@ -235,7 +235,6 @@
       this.worldMatrix = mat4.create();
       this.localMatrix = mat4.create();
       this.setParent = this.setParent.bind(this);
-      this.updateWorldMatrix = this.updateWorldMatrix.bind(this);
       this.drawInfo = {
         programInfo: null,
         mesh: null
@@ -274,16 +273,15 @@
       }
       this.parent = parent;
     }
-    updateWorldMatrix(parentWorldMatrix) {
-      if (parentWorldMatrix) {
-        mat4.mul(this.localMatrix, this.parentWorldMatrix, this.worldMatrix);
-      } else {
-        mat4.copy(this.localMatrix, this.worldMatrix);
-      }
-      const worldMatrix = this.worldMatrix;
-      this.children.forEach(child => {
-        child.updateWorldMatrix(worldMatrix);
-      });
+  }
+
+  function computeWorldMatrix(currentNode, parentWorldMatrix){
+    const worldMatrix = mat4.create();
+    mat4.mul(worldMatrix, parentWorldMatrix, currentNode.localMatrix);
+    if (currentNode.children.length){
+      currentNode.children.forEach( child =>{
+        computeWorldMatrix(child, worldMatrix);
+      })
     }
   }
 
@@ -452,48 +450,19 @@
       }
       // console.log(keySet);
     }
+    const worldMatrix = mat4.create();
+    computeWorldMatrix(nodeInfo["anvil"], worldMatrix)
     const modelViewMatrix = mat4.create();
     camera.getViewMatrix(modelViewMatrix);
     frameRate(timestamp);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    renderNodeGraph(gl, nodeInfo['anvil'], null, projectionMatrix, modelViewMatrix)
-    // gl.useProgram(nodeInfo["anvil"].drawInfo.programInfo.program);
-
-    // gl.uniformMatrix4fv(
-    //   nodeInfo["anvil"].drawInfo.programInfo.uniformLocations.projectionMatrix,
-    //   false,
-    //   projectionMatrix
-    // );
-    // gl.uniformMatrix4fv(
-    //   nodeInfo["anvil"].drawInfo.programInfo.uniformLocations.modelViewMatrix,
-    //   false,
-    //   modelViewMatrix
-    // );
-    // gl.enableVertexAttribArray(
-    //   nodeInfo["anvil"].drawInfo.programInfo.attribLocations.vertexPosition
-    // );
-    // gl.bindBuffer(
-    //   gl.ARRAY_BUFFER,
-    //   nodeInfo["anvil"].drawInfo.mesh.vertexBuffer
-    // );
-    // gl.vertexAttribPointer(
-    //   programInfo.attribLocations.vertexPosition,
-    //   nodeInfo["anvil"].drawInfo.mesh.vertexBuffer.itemSize,
-    //   gl.FLOAT,
-    //   false,
-    //   0,
-    //   0
-    // );
-    // gl.bindBuffer(
-    //   gl.ELEMENT_ARRAY_BUFFER,
-    //   nodeInfo["anvil"].drawInfo.mesh.indexBuffer
-    // );
-    // gl.drawElements(
-    //   gl.LINES,
-    //   nodeInfo["anvil"].drawInfo.mesh.indexBuffer.numItems,
-    //   gl.UNSIGNED_SHORT,
-    //   0
-    // );
+    renderNodeGraph(
+      gl,
+      nodeInfo["anvil"],
+      null,
+      projectionMatrix,
+      modelViewMatrix
+    );
 
     gl.useProgram(program2Info.program);
     let u_matrix = mat3.fromValues(
@@ -615,7 +584,7 @@
     camera = new Camera();
     camera.setPosition([0, 0, 10]);
     axisYMotionRamper = new LinearRamp();
-    axisYMotionRamper._step = 90;
+    axisYMotionRamper._step = 180;
     zMotionRamper = new LinearRamp();
     zMotionRamper._step = 5.0;
     zMotionRamper.interval = 500.0;
@@ -691,6 +660,7 @@
             }
             nodeInfo["bevCube"].setParent(nodeInfo["anvil"]);
             nodeInfo["egg"].setParent(nodeInfo["anvil"]);
+            console.log(nodeInfo);
             frame = requestAnimationFrame(draw);
           }
         });
@@ -756,6 +726,9 @@
   }
 
   function frameRate(timestamp) {
+    if(!fpsStart){
+      fpsStart = timestamp;
+    }
     if (count == 60) {
       let elapsed = timestamp - fpsStart;
       // console.log("fps: ", (count * 1000) / elapsed);
