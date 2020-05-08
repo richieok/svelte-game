@@ -46,6 +46,34 @@
       gl_FragColor = vec4(1, 0, 0.5, 1);
     }
   `;
+
+  const vsSource3 = `
+    attribute vec4 aVertexPosition;
+    attribute vec2 a_texcoord;
+
+    uniform mat4 uModelViewMatrix;
+    uniform mat4 uProjectionMatrix;
+    
+    varying vec2 v_texcoord;
+
+    void main(){
+      gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+
+      v_texcoord = a_texcoord;
+    }
+  `;
+
+  const fsSource3 = `
+    precision mediump float;
+
+    varying vec2 v_texcoord;
+
+    uniform sampler2D u_texture;
+
+    void main(){
+      gl_FragColor = texture2D(u_texture, v_texcoord);
+    }
+  `;
 </script>
 
 <script>
@@ -210,19 +238,20 @@
   let radY = 0.0;
   let keySet = new Set();
 
-  let mesh = null;
-  let bevCubeMesh = null;
+  let texture;
 
   const files = {
     anvil: "anvil.obj",
     bevCube: "beveledcube.obj",
-    egg: "egg.obj"
+    egg: "egg.obj",
+    asteroid: "asteroid.obj"
   };
 
   const nodeInfo = {
     anvil: null,
     bevCube: null,
-    egg: null
+    egg: null,
+    asteroid: null,
   };
 
   const app = {
@@ -275,13 +304,13 @@
     }
   }
 
-  function computeWorldMatrix(currentNode, parentWorldMatrix){
+  function computeWorldMatrix(currentNode, parentWorldMatrix) {
     const worldMatrix = mat4.create();
     mat4.mul(worldMatrix, parentWorldMatrix, currentNode.localMatrix);
-    if (currentNode.children.length){
-      currentNode.children.forEach( child =>{
+    if (currentNode.children.length) {
+      currentNode.children.forEach(child => {
         computeWorldMatrix(child, worldMatrix);
-      })
+      });
     }
   }
 
@@ -308,23 +337,39 @@
           false,
           modelViewMatrix
         );
-        gl.enableVertexAttribArray(
-          node.drawInfo.programInfo.attribLocations.vertexPosition
-        );
-        gl.bindBuffer(gl.ARRAY_BUFFER, node.drawInfo.mesh.vertexBuffer);
-        gl.vertexAttribPointer(
-          node.drawInfo.programInfo.attribLocations.vertexPosition,
-          node.drawInfo.mesh.vertexBuffer.itemSize,
-          gl.FLOAT,
-          false,
-          0,
-          0
-        );
+      }
+
+      gl.enableVertexAttribArray(
+        node.drawInfo.programInfo.attribLocations.vertexPosition
+      );
+      gl.bindBuffer(gl.ARRAY_BUFFER, node.drawInfo.mesh.vertexBuffer);
+      gl.vertexAttribPointer(
+        node.drawInfo.programInfo.attribLocations.vertexPosition,
+        node.drawInfo.mesh.vertexBuffer.itemSize,
+        gl.FLOAT,
+        false,
+        0,
+        0
+      );
+      if (node.drawInfo.programInfo.program === program3Info.program){
+        if(!node.drawInfo.mesh.textures.length){
+          gl.disableVertexAttribArray(node.drawInfo.programInfo.attribLocations.textureCoord);
+        } else {
+          gl.enableVertexAttribArray(node.drawInfo.programInfo.attribLocations.textureCoord);
+          gl.bindBuffer(gl.ARRAY_BUFFER, node.drawInfo.mesh.textureBuffer);
+          gl.vertexAttribPointer(
+            node.drawInfo.programInfo.attribLocations.textureCoord,
+            node.drawInfo.mesh.textureBuffer.itemSize, gl.FLOAT, false, 0, 0
+          );
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.uniform1i(node.drawInfo.programInfo.uniformLocations.uSampler, 0);
+        }
       }
       //Draw this node
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, node.drawInfo.mesh.indexBuffer);
       gl.drawElements(
-        gl.LINES,
+        gl.TRIANGLES,
         node.drawInfo.mesh.indexBuffer.numItems,
         gl.UNSIGNED_SHORT,
         0
@@ -354,6 +399,15 @@
   const program2Info = {
     program: null,
     positionAttributeLocation: null
+  };
+  const program3Info = {
+    program: null,
+    attribLocations: null,
+    uniformLocations: {
+      projectionMatrix: null,
+      modelViewMatrix: null,
+      uSampler: null
+    }
   };
 
   function initShaderProgram(gl, vsSource, fsSource) {
@@ -416,10 +470,11 @@
       console.log(app.meshes);
     }
     const timedelta = timestamp - previousTime;
-    // resize(gl.canvas);
+    resize(gl.canvas);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
     const fieldOfView = (45 * Math.PI) / 180; // in radians
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
-    const zNear = 0.1;
+    const zNear = 0.5;
     const zFar = 100.0;
     mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
     if (jumpMotionRamper.isRunning()) {
@@ -451,14 +506,14 @@
       // console.log(keySet);
     }
     const worldMatrix = mat4.create();
-    computeWorldMatrix(nodeInfo["anvil"], worldMatrix)
+    computeWorldMatrix(nodeInfo["anvil"], worldMatrix);
     const modelViewMatrix = mat4.create();
     camera.getViewMatrix(modelViewMatrix);
     frameRate(timestamp);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     renderNodeGraph(
       gl,
-      nodeInfo["anvil"],
+      nodeInfo["asteroid"],
       null,
       projectionMatrix,
       modelViewMatrix
@@ -596,6 +651,7 @@
     graphicsStatus = "webGl ready";
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
     const shaderProgram2 = initShaderProgram(gl, vsSource2, fsSource2);
+    const shaderProgram3 = initShaderProgram(gl, vsSource3, fsSource3);
     programInfo.program = shaderProgram;
     programInfo.attribLocations = {
       vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition")
@@ -612,6 +668,20 @@
       shaderProgram2,
       "a_position"
     );
+
+    program3Info.program = shaderProgram3;
+    program3Info.attribLocations = {
+      vertexPosition: gl.getAttribLocation(shaderProgram3, "aVertexPosition"),
+      textureCoord: gl.getAttribLocation(shaderProgram3, "a_texcoord")
+    };
+    program3Info.uniformLocations = {
+      projectionMatrix: gl.getUniformLocation(
+        shaderProgram3,
+        "uProjectionMatrix"
+      ),
+      modelViewMatrix: gl.getUniformLocation(shaderProgram3, "uModelViewMatrix"),
+      uSampler: gl.getUniformLocation(shaderProgram3, "uSampler")
+    };
     program2Info.resolutionUniformLocation = gl.getUniformLocation(
       shaderProgram2,
       "u_matrix"
@@ -636,6 +706,8 @@
     gl.enable(gl.DEPTH_TEST); // Enable depth testing
     gl.depthFunc(gl.LEQUAL); // Near things obscure far things
 
+    texture = loadTexture(gl, 'asteroid_mirrored.png');
+
     const ksize = Object.keys(files).length;
     let kcount = 0;
     for (let name in files) {
@@ -654,12 +726,19 @@
         .then(result => {
           if (result) {
             for (let name in nodeInfo) {
+              console.log(`working on ${name}`);
               nodeInfo[name] = new Node2();
               nodeInfo[name].drawInfo.mesh = app.meshes[name];
-              nodeInfo[name].drawInfo.programInfo = programInfo;
+              if (name == "asteroid") {
+                nodeInfo[name].drawInfo.programInfo = program3Info;
+              } else {
+                nodeInfo[name].drawInfo.programInfo = programInfo;
+              }
             }
-            nodeInfo["bevCube"].setParent(nodeInfo["anvil"]);
-            nodeInfo["egg"].setParent(nodeInfo["anvil"]);
+            nodeInfo["bevCube"].setParent(nodeInfo["asteroid"]);
+            // nodeInfo["egg"].setParent(nodeInfo["anvil"]);
+            // nodeInfo["asteroid"].setParent(nodeInfo["bevCube"]);
+            // nodeInfo["asteroid"].t = true;
             console.log(nodeInfo);
             frame = requestAnimationFrame(draw);
           }
@@ -726,7 +805,7 @@
   }
 
   function frameRate(timestamp) {
-    if(!fpsStart){
+    if (!fpsStart) {
       fpsStart = timestamp;
     }
     if (count == 60) {
@@ -790,7 +869,6 @@
   main {
     text-align: center;
     padding: 1em;
-    max-width: 240px;
     margin: 0 auto;
   }
 
@@ -807,12 +885,6 @@
     font-weight: 100;
   } */
 
-  @media (min-width: 640px) {
-    main {
-      max-width: none;
-    }
-  }
-
   #overlay {
     color: cornflowerblue;
     position: absolute;
@@ -820,9 +892,16 @@
     top: 10px;
   }
 
-  #canvas {
-    width: 720px;
-    height: 480px;
+  #display {
+    width: 600px;
+    height: 400px;
+  }
+
+  @media (min-width: 800px) {
+    #display {
+      width: 720px;
+      height: 480px;
+    }
   }
 </style>
 
@@ -842,7 +921,7 @@
     {/if}
   </div>
   <div class="container">
-    <canvas bind:this={canvas} width="300px" height="300px" />
+    <canvas bind:this={canvas} id="display" />
     <div id="overlay">
       {#if fps}
         <div>
